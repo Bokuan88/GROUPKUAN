@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>熟人專屬安全團購系統 (雲端版)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 載入中遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/80 z-50 flex flex-col items-center justify-center hidden">
+        <i class="fa-solid fa-spinner fa-spin text-4xl text-indigo-600 mb-2"></i>
+        <p class="text-sm text-slate-600 font-medium">正在與雲端同步資料，請稍候...</p>
+    </div>
+
+    <!-- 導覽列 -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-basket-shopping"></i> 熟人限定團購網</h1>
+            <div id="user-nav" class="flex items-center gap-4 text-sm">
+                <span>載入中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-5xl w-full mx-auto px-4 py-6">
+
+        <!-- 0. 首次系統安裝：設定管理者帳密 -->
+        <div id="setup-admin-section" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-sm border border-slate-100 hidden">
+            <h2 class="text-xl font-bold text-indigo-900 mb-2"><i class="fa-solid fa-user-shield"></i> 系統初始化設定</h2>
+            <p class="text-xs text-slate-500 mb-6">這是第一次啟動系統，請設定您的**管理者帳號與密碼**。資料將同步至您的 Google 試算表。</p>
+            <form onsubmit="handleSetupAdmin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">管理者姓名 / 稱呼</label>
+                    <input type="text" id="setup-admin-name" required value="KUAN" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">管理者登入帳號</label>
+                    <input type="text" id="setup-admin-username" required placeholder="例如：admin" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">管理者登入密碼</label>
+                    <input type="password" id="setup-admin-password" required placeholder="設定高強度密碼" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition">完成設定並進入系統</button>
+            </form>
+        </div>
+
+        <!-- 1. 登入/註冊畫面 -->
+        <div id="auth-section" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-sm border border-slate-100 hidden">
+            <div class="flex border-b mb-6">
+                <button onclick="switchTab('login')" id="tab-login" class="w-1/2 pb-3 font-semibold text-indigo-600 border-b-2 border-indigo-600">登入系統</button>
+                <button onclick="switchTab('register')" id="tab-register" class="w-1/2 pb-3 font-semibold text-slate-400">註冊帳號 (需審核)</button>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">帳號</label>
+                    <input type="text" id="login-username" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">登入密碼</label>
+                    <input type="password" id="login-password" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <button type="button" onclick="openForgotPasswordModal()" class="text-indigo-600 hover:underline">忘記密碼？</button>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition">登入</button>
+            </form>
+
+            <form id="register-form" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">姓名 / 暱稱</label>
+                    <input type="text" id="reg-name" required placeholder="例如：王小明" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">設定帳號</label>
+                    <input type="text" id="reg-username" required placeholder="設定您的登入帳號" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">設定登入密碼</label>
+                    <input type="password" id="reg-password" required placeholder="設定您的密碼" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">再次確認密碼</label>
+                    <input type="password" id="reg-password-confirm" required placeholder="請再次輸入密碼" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <p class="text-xs text-amber-600 bg-amber-50 p-2 rounded"><i class="fa-solid fa-triangle-exclamation"></i> 註冊後需等待管理者審核通過才可登入。</p>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-medium transition">送出註冊申請</button>
+            </form>
+        </div>
+
+        <!-- 2. 系統主畫面 -->
+        <div id="dashboard-section" class="hidden space-y-6">
+            <div id="admin-panel" class="hidden bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="font-bold text-indigo-900"><i class="fa-solid fa-user-shield"></i> 管理者控制台</h2>
+                    <p class="text-xs text-indigo-700">雲端資料同步中。</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="openUserApprovalModal()" class="bg-white text-indigo-600 px-3 py-2 rounded-lg text-sm font-medium border border-indigo-200 hover:bg-indigo-100 transition relative">
+                        <i class="fa-solid fa-user-clock"></i> 待審核會員 <span id="pending-badge" class="bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+                    </button>
+                    <button onclick="openResetPasswordRequestsModal()" class="bg-white text-indigo-600 px-3 py-2 rounded-lg text-sm font-medium border border-indigo-200 hover:bg-indigo-100 transition relative">
+                        <i class="fa-solid fa-key"></i> 密碼重設 <span id="pwd-badge" class="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+                    </button>
+                    <button onclick="openManageMembersModal()" class="bg-white text-indigo-600 px-3 py-2 rounded-lg text-sm font-medium border border-indigo-200 hover:bg-indigo-100 transition">
+                        <i class="fa-solid fa-users-gear"></i> 會員管理
+                    </button>
+                    <button onclick="openCreateGroupModal()" class="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                        <i class="fa-solid fa-plus"></i> 發起新團購
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-lg font-bold text-slate-700 mb-4"><i class="fa-solid fa-list"></i> 進行中的團購項目</h3>
+                <div id="group-list" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 各項彈窗 (發起團購、審核、會員管理等) 與之前相同 -->
+    <div id="modal-create-group" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="group-modal-title" class="font-bold text-lg">發起新團購</h3>
+                <button onclick="closeModal('modal-create-group')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form onsubmit="handleSaveGroup(event)" class="space-y-3">
+                <input type="hidden" id="editing-group-id">
+                <div>
+                    <label class="block text-sm font-medium">團購品項名稱</label>
+                    <input type="text" id="g-title" required class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">詳細內容與規格</label>
+                    <textarea id="g-desc" rows="2" class="w-full px-3 py-2 border rounded-lg" placeholder="例如：口味、甜度冰塊等"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">上傳照片</label>
+                    <input type="file" id="g-img-file" accept="image/*" class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium">商品總價 ($)</label>
+                        <input type="number" id="g-total" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">運費/手續費 ($)</label>
+                        <input type="number" id="g-fee" value="0" oninput="calculatePrice()" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium">商品總數量上限</label>
+                        <input type="number" id="g-max-qty" value="10" min="1" required class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">預估分攤人數</label>
+                        <input type="number" id="g-people" value="1" min="1" oninput="calculatePrice()" class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-lg border text-sm space-y-1">
+                    <div class="font-semibold text-slate-700">金額試算：</div>
+                    <div class="text-indigo-600 font-bold" id="calc-result">每人應付金額：$0</div>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal('modal-create-group')" class="px-4 py-2 border rounded-lg text-slate-600">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">儲存團購</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 彈窗：待審核會員 -->
+    <div id="modal-pending-users" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg">待審核會員名單</h3>
+                <button onclick="closeModal('modal-pending-users')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="pending-users-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+            <div class="flex justify-end">
+                <button onclick="closeModal('modal-pending-users')" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗：密碼重設申請管理 -->
+    <div id="modal-pwd-requests" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg">會員密碼重設申請</h3>
+                <button onclick="closeModal('modal-pwd-requests')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="pwd-requests-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+            <div class="flex justify-end">
+                <button onclick="closeModal('modal-pwd-requests')" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗：會員名單管理 -->
+    <div id="modal-manage-members" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg">已核准會員名單與管理</h3>
+                <button onclick="closeModal('modal-manage-members')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="members-list-container" class="space-y-3"></div>
+            <div class="flex justify-end">
+                <button onclick="closeModal('modal-manage-members')" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗：忘記密碼申請 -->
+    <div id="modal-forgot-password" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg">發起忘記密碼申請</h3>
+                <button onclick="closeModal('modal-forgot-password')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form onsubmit="handleForgotPassword(event)" class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium">您的登入帳號</label>
+                    <input type="text" id="forgot-username" required class="w-full px-3 py-2 border rounded-lg">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal('modal-forgot-password')" class="px-4 py-2 border rounded-lg text-slate-600">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">送出申請</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 腳本邏輯 -->
+    <script>
+        // ⚠️ 請將此處替換為你在步驟一部署取得的 Google Apps Script 網頁應用程式網址
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyDDolbZz63HHVg0oIy-Rwzn-OACYukXS4xHxCfMdyOC0_07DupmuGXfRX_z7j-RxMcnw/exec";
+
+        let db = { users: [], groups: [] };
+        let currentUser = JSON.parse(localStorage.getItem('cloud_current_user')) || null;
+
+        function showLoading(show) {
+            document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+        }
+
+        async function hashPassword(string) {
+            const utf8 = new TextEncoder().encode(string);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // 從雲端同步資料
+        async function fetchCloudDB() {
+            showLoading(true);
+            try {
+                let response = await fetch(GAS_API_URL, { method: 'GET' });
+                let data = await response.json();
+                db = data;
+            } catch (err) {
+                console.error("同步失敗", err);
+                alert('無法連線至雲端資料庫，請檢查網路或 GAS 網址是否正確。');
+            }
+            showLoading(false);
+        }
+
+        // 儲存資料至雲端
+        async function saveCloudDB() {
+            showLoading(true);
+            try {
+                await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "saveData", db: db })
+                });
+            } catch (err) {
+                console.error("儲存失敗", err);
+                alert('儲存至雲端失敗！');
+            }
+            showLoading(false);
+        }
+
+        window.onload = async function() {
+            await fetchCloudDB();
+            const adminExists = db.users.some(u => u.isAdmin);
+            if (!adminExists) {
+                document.getElementById('setup-admin-section').classList.remove('hidden');
+                document.getElementById('auth-section').classList.add('hidden');
+            } else {
+                updateUI();
+            }
+        }
+
+        async function handleSetupAdmin(e) {
+            e.preventDefault();
+            const name = document.getElementById('setup-admin-name').value;
+            const username = document.getElementById('setup-admin-username').value;
+            const password = document.getElementById('setup-admin-password').value;
+            const passwordHash = await hashPassword(password);
+
+            db.users.push({ username, passwordHash, name, status: 'approved', isAdmin: true, resetRequested: false });
+            await saveCloudDB();
+
+            alert('管理者帳號設定成功！請使用新帳密登入系統。');
+            document.getElementById('setup-admin-section').classList.add('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
+        }
+
+        function switchTab(tab) {
+            if(tab === 'login') {
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('register-form').classList.add('hidden');
+                document.getElementById('tab-login').className = "w-1/2 pb-3 font-semibold text-indigo-600 border-b-2 border-indigo-600";
+                document.getElementById('tab-register').className = "w-1/2 pb-3 font-semibold text-slate-400";
+            } else {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('register-form').classList.remove('hidden');
+                document.getElementById('tab-register').className = "w-1/2 pb-3 font-semibold text-emerald-600 border-b-2 border-emerald-600";
+                document.getElementById('tab-login').className = "w-1/2 pb-3 font-semibold text-slate-400";
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value;
+            const username = document.getElementById('reg-username').value;
+            const password = document.getElementById('reg-password').value;
+            const passwordConfirm = document.getElementById('reg-password-confirm').value;
+
+            if (password !== passwordConfirm) {
+                alert('兩次輸入的密碼不一致！');
+                return;
+            }
+
+            if(db.users.find(u => u.username === username)) {
+                alert('此帳號已被註冊！');
+                return;
+            }
+
+            const passwordHash = await hashPassword(password);
+            db.users.push({ username, passwordHash, name, status: 'pending', isAdmin: false, resetRequested: false });
+            await saveCloudDB();
+
+            alert('註冊申請已送出！請等待管理者審核通過。');
+            document.getElementById('register-form').reset();
+            switchTab('login');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            await fetchCloudDB(); // 登入前重新同步
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const passwordHash = await hashPassword(password);
+
+            const user = db.users.find(u => u.username === username && u.passwordHash === passwordHash);
+            
+            if(!user) {
+                alert('帳號或密碼錯誤！');
+                return;
+            }
+
+            if(user.status !== 'approved') {
+                alert('您的帳號尚未通過管理者審核。');
+                return;
+            }
+
+            currentUser = user;
+            localStorage.setItem('cloud_current_user', JSON.stringify(currentUser));
+            updateUI();
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('cloud_current_user');
+            updateUI();
+        }
+
+        async function updateUI() {
+            await fetchCloudDB();
+            const authSection = document.getElementById('auth-section');
+            const dashboardSection = document.getElementById('dashboard-section');
+            const userNav = document.getElementById('user-nav');
+            const adminPanel = document.getElementById('admin-panel');
+
+            if(currentUser) {
+                authSection.classList.add('hidden');
+                dashboardSection.classList.remove('hidden');
+                userNav.innerHTML = `
+                    <span><i class="fa-solid fa-user-circle"></i> ${currentUser.name} (${currentUser.isAdmin ? '管理者' : '會員'})</span>
+                    <button onclick="logout()" class="bg-indigo-700 hover:bg-indigo-800 px-3 py-1 rounded text-xs">登出</button>
+                `;
+
+                if(currentUser.isAdmin) {
+                    adminPanel.classList.remove('hidden');
+                    updateBadges();
+                } else {
+                    adminPanel.classList.add('hidden');
+                }
+
+                renderGroups();
+            } else {
+                authSection.classList.remove('hidden');
+                dashboardSection.classList.add('hidden');
+                userNav.innerHTML = `<span>尚未登入</span>`;
+            }
+        }
+
+        function calculatePrice() {
+            const total = parseFloat(document.getElementById('g-total').value) || 0;
+            const fee = parseFloat(document.getElementById('g-fee').value) || 0;
+            const people = parseInt(document.getElementById('g-people').value) || 1;
+            const perPerson = Math.ceil((total + fee) / people);
+            document.getElementById('calc-result').innerText = `每人應付金額：$${perPerson} (總金額 $${total} + 手續費 $${fee} ÷ ${people} 人)`;
+        }
+
+        function openCreateGroupModal() {
+            document.getElementById('group-modal-title').innerText = "發起新團購";
+            document.getElementById('editing-group-id').value = "";
+            document.getElementById('g-title').value = "";
+            document.getElementById('g-desc').value = "";
+            document.getElementById('g-img-file').value = "";
+            document.getElementById('g-total').value = "";
+            document.getElementById('g-fee').value = "0";
+            document.getElementById('g-max-qty').value = "10";
+            document.getElementById('g-people').value = "1";
+            calculatePrice();
+            document.getElementById('modal-create-group').classList.remove('hidden');
+        }
+
+        function openEditGroupModal(groupId) {
+            const g = db.groups.find(item => item.id === groupId);
+            if(!g) return;
+            document.getElementById('group-modal-title').innerText = "編輯團購項目";
+            document.getElementById('editing-group-id').value = g.id;
+            document.getElementById('g-title').value = g.title;
+            document.getElementById('g-desc').value = g.description;
+            document.getElementById('g-total').value = g.total;
+            document.getElementById('g-fee').value = g.fee;
+            document.getElementById('g-max-qty').value = g.maxQty;
+            document.getElementById('g-people').value = g.people;
+            calculatePrice();
+            document.getElementById('modal-create-group').classList.remove('hidden');
+        }
+
+        async function handleSaveGroup(e) {
+            e.preventDefault();
+            const editingId = document.getElementById('editing-group-id').value;
+            const title = document.getElementById('g-title').value;
+            const description = document.getElementById('g-desc').value;
+            const total = parseFloat(document.getElementById('g-total').value);
+            const fee = parseFloat(document.getElementById('g-fee').value);
+            const maxQty = parseInt(document.getElementById('g-max-qty').value);
+            const people = parseInt(document.getElementById('g-people').value);
+            const perPerson = Math.ceil((total + fee) / people);
+
+            const fileInput = document.getElementById('g-img-file');
+            let imageUrl = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80';
+            
+            if(fileInput.files && fileInput.files[0]) {
+                imageUrl = await toBase64(fileInput.files[0]);
+            }
+
+            if(editingId) {
+                let g = db.groups.find(item => item.id === editingId);
+                if(g) {
+                    g.title = title;
+                    g.description = description;
+                    if(fileInput.files && fileInput.files[0]) g.image = imageUrl;
+                    g.total = total;
+                    g.fee = fee;
+                    g.maxQty = maxQty;
+                    g.people = people;
+                    g.perPerson = perPerson;
+                }
+            } else {
+                const newGroup = {
+                    id: 'g_' + Date.now(),
+                    title, description, image: imageUrl, total, fee, maxQty, people, perPerson,
+                    status: 'active',
+                    creator: currentUser.name,
+                    orders: []
+                };
+                db.groups.push(newGroup);
+            }
+
+            await saveCloudDB();
+            closeModal('modal-create-group');
+            updateUI();
+            alert('儲存成功！');
+        }
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function deleteGroup(groupId) {
+            const g = db.groups.find(item => item.id === groupId);
+            if(g.status !== 'closed') {
+                alert('此團購尚未結案完成，禁止刪除！');
+                return;
+            }
+            if(confirm('確定要永久刪除此團購嗎？')) {
+                db.groups = db.groups.filter(item => item.id !== groupId);
+                await saveCloudDB();
+                updateUI();
+            }
+        }
+
+        async function toggleGroupStatus(groupId) {
+            const g = db.groups.find(item => item.id === groupId);
+            if (g.status === 'active') {
+                const hasUnpaid = g.orders.some(o => !o.isPaid);
+                if (hasUnpaid) {
+                    alert('⚠️ 無法結案！還有成員尚未繳費。');
+                    return;
+                }
+            }
+            g.status = g.status === 'active' ? 'closed' : 'active';
+            await saveCloudDB();
+            updateUI();
+        }
+
+        function copyLineSummary(groupId) {
+            const g = db.groups.find(item => item.id === groupId);
+            if(!g) return;
+            let totalQty = g.orders.reduce((sum, o) => sum + o.qty, 0);
+            let statusText = g.status === 'active' ? '【進行中揪團】' : '【已結案清單】';
+
+            let lineText = `${statusText} ${g.title}\n`;
+            if(g.description) lineText += `說明：${g.description}\n`;
+            lineText += `--------------------\n`;
+            lineText += `📦 總訂購數量：${totalQty} / ${g.maxQty}\n`;
+            lineText += `💰 每人分攤參考金額：$${g.perPerson}\n`;
+            lineText += `--------------------\n`;
+            lineText += `👥 點餐明細與繳費狀況：\n`;
+
+            if(g.orders.length === 0) {
+                lineText += `(目前尚無人點餐)\n`;
+            } else {
+                g.orders.forEach(o => {
+                    let paidStatus = o.isPaid ? '【已繳費】' : '【未繳費】';
+                    lineText += `• ${o.name}：+${o.qty} ➔ ${paidStatus}\n`;
+                });
+            }
+            lineText += `--------------------\n`;
+            lineText += `請各位核對金額並完成匯款/繳費，謝謝大家！`;
+
+            navigator.clipboard.writeText(lineText).then(() => {
+                alert('已成功複製 LINE 結算清單！');
+            });
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('group-list');
+            container.innerHTML = '';
+
+            if(db.groups.length === 0) {
+                container.innerHTML = `<p class="text-slate-400 col-span-2 text-center py-8">目前沒有進行中的團購項目。</p>`;
+                return;
+            }
+
+            db.groups.forEach(g => {
+                let myOrder = g.orders.find(o => o.username === currentUser.username);
+                let totalQty = g.orders.reduce((sum, o) => sum + o.qty, 0);
+                let isFull = totalQty >= g.maxQty;
+
+                let adminOrdersHtml = g.orders.map((o, idx) => `
+                    <div class="flex justify-between items-center text-xs py-1 border-b border-slate-100">
+                        <span><b>${o.name}</b> (+${o.qty})</span>
+                        <label class="flex items-center gap-1 cursor-pointer text-emerald-600 font-medium">
+                            <input type="checkbox" ${o.isPaid ? 'checked' : ''} onchange="togglePaid('${g.id}', ${idx})" class="rounded">
+                            ${o.isPaid ? '已繳費' : '未繳費'}
+                        </label>
+                    </div>
+                `).join('');
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col justify-between";
+                card.innerHTML = `
+                    <div>
+                        <div class="h-40 bg-slate-200 overflow-hidden relative">
+                            <img src="${g.image}" alt="${g.title}" class="w-full h-full object-cover">
+                            <span class="absolute top-2 left-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded font-bold">${g.status === 'active' ? '進行中' : '已結案'}</span>
+                            <span class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">分攤參考: $${g.perPerson}/人</span>
+                        </div>
+                        <div class="p-4 space-y-2">
+                            <div class="flex justify-between items-start">
+                                <h4 class="font-bold text-slate-800 text-lg">${g.title}</h4>
+                                ${currentUser.isAdmin ? `
+                                    <div class="flex gap-1 items-center">
+                                        <button onclick="copyLineSummary('${g.id}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs px-2 py-1 rounded font-medium flex items-center gap-1"><i class="fa-solid fa-copy"></i> 複製清單</button>
+                                        <button onclick="openEditGroupModal('${g.id}')" class="text-slate-400 hover:text-indigo-600 text-xs px-1.5 py-1"><i class="fa-solid fa-pen"></i></button>
+                                        <button onclick="toggleGroupStatus('${g.id}')" class="text-slate-400 hover:text-amber-600 text-xs px-1.5 py-1"><i class="fa-solid fa-lock"></i></button>
+                                        <button onclick="deleteGroup('${g.id}')" class="text-slate-400 hover:text-rose-600 text-xs px-1.5 py-1"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <p class="text-xs text-slate-500">${g.description}</p>
+                            
+                            <div class="bg-slate-50 p-3 rounded-lg space-y-2">
+                                <div class="flex justify-between text-xs font-semibold text-slate-700">
+                                    <span>目前總購買數：<b class="text-indigo-600 text-sm">${totalQty}</b> / 目標上限 ${g.maxQty}</span>
+                                    <span>${isFull ? '<span class="text-rose-600">已額滿</span>' : '開放中'}</span>
+                                </div>
+                                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-indigo-600 h-full transition-all" style="width: ${Math.min(100, (totalQty/g.maxQty)*100)}%"></div>
+                                </div>
+                            </div>
+
+                            ${currentUser.isAdmin ? `
+                                <div class="mt-3">
+                                    <div class="text-xs font-semibold text-indigo-900 mb-1"><i class="fa-solid fa-users"></i> 點餐與繳費清單</div>
+                                    <div class="bg-indigo-50/50 rounded p-2 max-h-32 overflow-y-auto space-y-1 border border-indigo-100">
+                                        ${adminOrdersHtml || '<span class="text-xs text-slate-400">尚無人點餐</span>'}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="p-4 bg-slate-50 border-t flex items-center justify-between">
+                        <div class="text-xs text-slate-500">發起人: ${g.creator}</div>
+                        <div>
+                            ${g.status === 'closed' ? `
+                                <span class="text-xs text-slate-400 font-bold">本團已結案</span>
+                            ` : myOrder ? `
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-emerald-600 font-bold"><i class="fa-solid fa-check"></i> 已 +${myOrder.qty}</span>
+                                    <button onclick="updateOrder('${g.id}', -1)" class="bg-red-100 text-red-600 hover:bg-red-200 text-xs px-2 py-1 rounded">-1</button>
+                                    <button onclick="updateOrder('${g.id}', 1)" ${totalQty >= g.maxQty ? 'disabled' : ''} class="bg-indigo-100 text-indigo-600 hover:bg-indigo-200 text-xs px-2 py-1 rounded disabled:opacity-50">+1</button>
+                                </div>
+                            ` : `
+                                <button onclick="updateOrder('${g.id}', 1)" ${isFull ? 'disabled' : ''} class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded font-medium transition disabled:bg-slate-300">
+                                    <i class="fa-solid fa-plus"></i> ${isFull ? '已額滿' : '我要 +1'}
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function updateOrder(groupId, change) {
+            await fetchCloudDB();
+            const group = db.groups.find(g => g.id === groupId);
+            let totalQty = group.orders.reduce((sum, o) => sum + o.qty, 0);
+            let order = group.orders.find(o => o.username === currentUser.username);
+
+            if(change > 0 && (totalQty + 1) > group.maxQty) {
+                alert('已達到商品總數量上限！');
+                return;
+            }
+
+            if(order) {
+                order.qty += change;
+                if(order.qty <= 0) {
+                    group.orders = group.orders.filter(o => o.username !== currentUser.username);
+                }
+            } else if(change > 0) {
+                group.orders.push({ username: currentUser.username, name: currentUser.name, qty: 1, isPaid: false });
+            }
+            await saveCloudDB();
+            updateUI();
+        }
+
+        async function togglePaid(groupId, orderIdx) {
+            await fetchCloudDB();
+            const group = db.groups.find(g => g.id === groupId);
+            group.orders[orderIdx].isPaid = !group.orders[orderIdx].isPaid;
+            await saveCloudDB();
+            updateUI();
+        }
+
+        function openForgotPasswordModal() {
+            document.getElementById('modal-forgot-password').classList.remove('hidden');
+        }
+
+        async function handleForgotPassword(e) {
+            e.preventDefault();
+            await fetchCloudDB();
+            const username = document.getElementById('forgot-username').value;
+            let u = db.users.find(user => user.username === username);
+            if(!u) {
+                alert('找不到此帳號！');
+                return;
+            }
+            u.resetRequested = true;
+            await saveCloudDB();
+            alert('已向管理者送出密碼重設申請。');
+            closeModal('modal-forgot-password');
+        }
+
+        function updateBadges() {
+            const pendingUsers = db.users.filter(u => u.status === 'pending');
+            const pendingResets = db.users.filter(u => u.resetRequested);
+
+            const badge1 = document.getElementById('pending-badge');
+            badge1.innerText = pendingUsers.length;
+            badge1.classList.toggle('hidden', pendingUsers.length === 0);
+
+            const badge2 = document.getElementById('pwd-badge');
+            badge2.innerText = pendingResets.length;
+            badge2.classList.toggle('hidden', pendingResets.length === 0);
+        }
+
+        function openResetPasswordRequestsModal() {
+            const container = document.getElementById('pwd-requests-list');
+            const resets = db.users.filter(u => u.resetRequested);
+            if(resets.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">目前沒有密碼重設申請。</p>`;
+            } else {
+                container.innerHTML = resets.map(u => `
+                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border">
+                        <div><div class="font-bold text-sm">${u.name}</div><div class="text-xs text-slate-500">${u.username}</div></div>
+                        <button onclick="approvePasswordReset('${u.username}')" class="bg-amber-600 text-white text-xs px-3 py-1.5 rounded">核准臨時密碼(8888)</button>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('modal-pwd-requests').classList.remove('hidden');
+        }
+
+        async function approvePasswordReset(username) {
+            let u = db.users.find(user => user.username === username);
+            if(u) {
+                u.passwordHash = await hashPassword('8888');
+                u.resetRequested = false;
+                await saveCloudDB();
+                alert(`已核准！臨時密碼為：8888`);
+                openResetPasswordRequestsModal();
+                updateUI();
+            }
+        }
+
+        function openUserApprovalModal() {
+            const container = document.getElementById('pending-users-list');
+            const pending = db.users.filter(u => u.status === 'pending');
+            if(pending.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">目前沒有待審核會員。</p>`;
+            } else {
+                container.innerHTML = pending.map(u => `
+                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border">
+                        <div><div class="font-bold text-sm">${u.name}</div><div class="text-xs text-slate-500">${u.username}</div></div>
+                        <div class="flex gap-2">
+                            <button onclick="approveUser('${u.username}', true)" class="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded">核准</button>
+                            <button onclick="approveUser('${u.username}', false)" class="bg-rose-100 text-rose-600 text-xs px-3 py-1.5 rounded">拒絕</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('modal-pending-users').classList.remove('hidden');
+        }
+
+        async function approveUser(username, isApproved) {
+            if(isApproved) {
+                let u = db.users.find(user => user.username === username);
+                if(u) u.status = 'approved';
+            } else {
+                db.users = db.users.filter(user => user.username !== username);
+            }
+            await saveCloudDB();
+            updateUI();
+            openUserApprovalModal();
+        }
+
+        function openManageMembersModal() {
+            const container = document.getElementById('members-list-container');
+            const approvedUsers = db.users.filter(u => !u.isAdmin);
+            if(approvedUsers.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">目前沒有其他會員。</p>`;
+            } else {
+                container.innerHTML = approvedUsers.map(u => `
+                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border">
+                        <input type="text" id="m-name-${u.username}" value="${u.name}" class="px-2 py-1 text-sm border rounded bg-white">
+                        <div class="flex gap-2">
+                            <button onclick="updateMemberName('${u.username}')" class="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded">更新</button>
+                            <button onclick="kickMember('${u.username}')" class="bg-rose-100 text-rose-600 text-xs px-3 py-1.5 rounded">踢除</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('modal-manage-members').classList.remove('hidden');
+        }
+
+        async function updateMemberName(username) {
+            const newName = document.getElementById(`m-name-${username}`).value;
+            let u = db.users.find(user => user.username === username);
+            if(u && newName) {
+                u.name = newName;
+                await saveCloudDB();
+                alert('更新成功！');
+                updateUI();
+            }
+        }
+
+        async function kickMember(username) {
+            if(confirm(`確定要將 ${username} 踢出嗎？`)) {
+                db.users = db.users.filter(user => user.username !== username);
+                await saveCloudDB();
+                updateUI();
+                openManageMembersModal();
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
