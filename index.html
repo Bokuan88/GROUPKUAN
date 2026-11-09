@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>熟人專屬安全團購系統 (雲端版)</title>
+    <title>熟人專屬安全團購系統 (V6)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -125,7 +125,7 @@
         </div>
     </main>
 
-    <!-- 各項彈窗 (發起團購、審核、會員管理等) 與之前相同 -->
+    <!-- 彈窗：發起/編輯團購 -->
     <div id="modal-create-group" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b pb-3">
@@ -142,33 +142,44 @@
                     <label class="block text-sm font-medium">詳細內容與規格</label>
                     <textarea id="g-desc" rows="2" class="w-full px-3 py-2 border rounded-lg" placeholder="例如：口味、甜度冰塊等"></textarea>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium">上傳照片</label>
-                    <input type="file" id="g-img-file" accept="image/*" class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
+                <!-- 獨立圖片來源選項 -->
+                <div class="space-y-2 bg-slate-50 p-3 rounded-lg border">
+                    <label class="block text-sm font-medium text-slate-700"><i class="fa-solid fa-image"></i> 商品縮圖設定 (二選一)</label>
                     <div>
-                        <label class="block text-sm font-medium">商品總價 ($)</label>
-                        <input type="number" id="g-total" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg">
+                        <span class="text-xs text-slate-500">選項 A：貼上網路圖片網址 (URL)</span>
+                        <input type="url" id="g-img-url" placeholder="https://..." class="w-full px-3 py-1.5 border rounded-lg text-sm bg-white mt-1">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">運費/手續費 ($)</label>
-                        <input type="number" id="g-fee" value="0" oninput="calculatePrice()" class="w-full px-3 py-2 border rounded-lg">
+                        <span class="text-xs text-slate-500">選項 B：從裝置上傳圖片檔案</span>
+                        <input type="file" id="g-img-file" accept="image/*" class="w-full px-3 py-1.5 border rounded-lg text-sm bg-white mt-1">
                     </div>
                 </div>
+                <!-- 價格與數量邏輯升級 -->
                 <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium">商品單價 ($)</label>
+                        <input type="number" id="g-unit-price" min="0" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg" placeholder="例如：100">
+                    </div>
                     <div>
                         <label class="block text-sm font-medium">商品總數量上限</label>
-                        <input type="number" id="g-max-qty" value="10" min="1" required class="w-full px-3 py-2 border rounded-lg">
+                        <input type="number" id="g-max-qty" min="1" value="10" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium">運費 / 手續費 ($)</label>
+                        <input type="number" id="g-fee" value="0" min="0" oninput="calculatePrice()" class="w-full px-3 py-2 border rounded-lg">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">預估分攤人數</label>
+                        <label class="block text-sm font-medium">預估分攤人數 (分母)</label>
                         <input type="number" id="g-people" value="1" min="1" oninput="calculatePrice()" class="w-full px-3 py-2 border rounded-lg">
                     </div>
                 </div>
-                <div class="bg-slate-50 p-3 rounded-lg border text-sm space-y-1">
-                    <div class="font-semibold text-slate-700">金額試算：</div>
-                    <div class="text-indigo-600 font-bold" id="calc-result">每人應付金額：$0</div>
+                <!-- 金額試算顯示區 -->
+                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 text-sm space-y-1">
+                    <div class="font-semibold text-indigo-900">金額試算：</div>
+                    <div class="text-indigo-700" id="calc-subtotal">商品總價：$0 (單價 × 數量)</div>
+                    <div class="text-indigo-700 font-bold" id="calc-result">每人應付分攤金額：$0</div>
                 </div>
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" onclick="closeModal('modal-create-group')" class="px-4 py-2 border rounded-lg text-slate-600">取消</button>
@@ -242,11 +253,11 @@
 
     <!-- 腳本邏輯 -->
     <script>
-        // ⚠️ 請將此處替換為你在步驟一部署取得的 Google Apps Script 網頁應用程式網址
-        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyDDolbZz63HHVg0oIy-Rwzn-OACYukXS4xHxCfMdyOC0_07DupmuGXfRX_z7j-RxMcnw/exec";
+        // ⚠️ 請記得將此處替換為你的 Google Apps Script 網頁應用程式網址
+        const GAS_API_URL = "請在此貼上你的GAS網址";
 
         let db = { users: [], groups: [] };
-        let currentUser = JSON.parse(localStorage.getItem('cloud_current_user')) || null;
+        let currentUser = JSON.parse(localStorage.getItem('cloud_current_user_v6')) || null;
 
         function showLoading(show) {
             document.getElementById('loading-overlay').classList.toggle('hidden', !show);
@@ -259,7 +270,6 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        // 從雲端同步資料
         async function fetchCloudDB() {
             showLoading(true);
             try {
@@ -268,12 +278,11 @@
                 db = data;
             } catch (err) {
                 console.error("同步失敗", err);
-                alert('無法連線至雲端資料庫，請檢查網路或 GAS 網址是否正確。');
+                alert('無法連線至雲端資料庫，請檢查 GAS 網址是否正確。');
             }
             showLoading(false);
         }
 
-        // 儲存資料至雲端
         async function saveCloudDB() {
             showLoading(true);
             try {
@@ -356,7 +365,7 @@
 
         async function handleLogin(e) {
             e.preventDefault();
-            await fetchCloudDB(); // 登入前重新同步
+            await fetchCloudDB();
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
             const passwordHash = await hashPassword(password);
@@ -374,13 +383,13 @@
             }
 
             currentUser = user;
-            localStorage.setItem('cloud_current_user', JSON.stringify(currentUser));
+            localStorage.setItem('cloud_current_user_v6', JSON.stringify(currentUser));
             updateUI();
         }
 
         function logout() {
             currentUser = null;
-            localStorage.removeItem('cloud_current_user');
+            localStorage.removeItem('cloud_current_user_v6');
             updateUI();
         }
 
@@ -414,12 +423,18 @@
             }
         }
 
+        // 金額與總價試算邏輯
         function calculatePrice() {
-            const total = parseFloat(document.getElementById('g-total').value) || 0;
+            const unitPrice = parseFloat(document.getElementById('g-unit-price').value) || 0;
+            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 1;
             const fee = parseFloat(document.getElementById('g-fee').value) || 0;
             const people = parseInt(document.getElementById('g-people').value) || 1;
-            const perPerson = Math.ceil((total + fee) / people);
-            document.getElementById('calc-result').innerText = `每人應付金額：$${perPerson} (總金額 $${total} + 手續費 $${fee} ÷ ${people} 人)`;
+
+            const subtotal = unitPrice * maxQty; // 商品總價
+            const perPerson = Math.ceil((subtotal + fee) / people);
+
+            document.getElementById('calc-subtotal').innerText = `商品總價：$${subtotal} (單價 $${unitPrice} × 數量 ${maxQty})`;
+            document.getElementById('calc-result').innerText = `每人應付分攤金額：$${perPerson} (總價 $${subtotal} + 手續費 $${fee} ÷ ${people} 人)`;
         }
 
         function openCreateGroupModal() {
@@ -427,10 +442,11 @@
             document.getElementById('editing-group-id').value = "";
             document.getElementById('g-title').value = "";
             document.getElementById('g-desc').value = "";
+            document.getElementById('g-img-url').value = "";
             document.getElementById('g-img-file').value = "";
-            document.getElementById('g-total').value = "";
-            document.getElementById('g-fee').value = "0";
+            document.getElementById('g-unit-price').value = "";
             document.getElementById('g-max-qty').value = "10";
+            document.getElementById('g-fee').value = "0";
             document.getElementById('g-people').value = "1";
             calculatePrice();
             document.getElementById('modal-create-group').classList.remove('hidden');
@@ -443,9 +459,10 @@
             document.getElementById('editing-group-id').value = g.id;
             document.getElementById('g-title').value = g.title;
             document.getElementById('g-desc').value = g.description;
-            document.getElementById('g-total').value = g.total;
-            document.getElementById('g-fee').value = g.fee;
+            document.getElementById('g-img-url').value = g.image && g.image.startsWith('http') ? g.image : '';
+            document.getElementById('g-unit-price').value = g.unitPrice || 0;
             document.getElementById('g-max-qty').value = g.maxQty;
+            document.getElementById('g-fee').value = g.fee;
             document.getElementById('g-people').value = g.people;
             calculatePrice();
             document.getElementById('modal-create-group').classList.remove('hidden');
@@ -456,16 +473,21 @@
             const editingId = document.getElementById('editing-group-id').value;
             const title = document.getElementById('g-title').value;
             const description = document.getElementById('g-desc').value;
-            const total = parseFloat(document.getElementById('g-total').value);
-            const fee = parseFloat(document.getElementById('g-fee').value);
-            const maxQty = parseInt(document.getElementById('g-max-qty').value);
-            const people = parseInt(document.getElementById('g-people').value);
+            const unitPrice = parseFloat(document.getElementById('g-unit-price').value) || 0;
+            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 10;
+            const fee = parseFloat(document.getElementById('g-fee').value) || 0;
+            const people = parseInt(document.getElementById('g-people').value) || 1;
+            
+            const total = unitPrice * maxQty; // 總價自動計算
             const perPerson = Math.ceil((total + fee) / people);
 
+            const imgUrlInput = document.getElementById('g-img-url').value.trim();
             const fileInput = document.getElementById('g-img-file');
-            let imageUrl = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80';
             
-            if(fileInput.files && fileInput.files[0]) {
+            let imageUrl = "";
+            if (imgUrlInput) {
+                imageUrl = imgUrlInput;
+            } else if (fileInput.files && fileInput.files[0]) {
                 imageUrl = await toBase64(fileInput.files[0]);
             }
 
@@ -474,17 +496,18 @@
                 if(g) {
                     g.title = title;
                     g.description = description;
-                    if(fileInput.files && fileInput.files[0]) g.image = imageUrl;
+                    if (imageUrl) g.image = imageUrl;
+                    g.unitPrice = unitPrice;
+                    g.maxQty = maxQty;
                     g.total = total;
                     g.fee = fee;
-                    g.maxQty = maxQty;
                     g.people = people;
                     g.perPerson = perPerson;
                 }
             } else {
                 const newGroup = {
                     id: 'g_' + Date.now(),
-                    title, description, image: imageUrl, total, fee, maxQty, people, perPerson,
+                    title, description, image: imageUrl, unitPrice, maxQty, total, fee, people, perPerson,
                     status: 'active',
                     creator: currentUser.name,
                     orders: []
@@ -544,7 +567,8 @@
             if(g.description) lineText += `說明：${g.description}\n`;
             lineText += `--------------------\n`;
             lineText += `📦 總訂購數量：${totalQty} / ${g.maxQty}\n`;
-            lineText += `💰 每人分攤參考金額：$${g.perPerson}\n`;
+            lineText += `💰 商品單價：$${g.unitPrice || (g.total/g.maxQty)} | 總價：$${g.total}\n`;
+            lineText += `💡 每人分攤參考金額：$${g.perPerson}\n`;
             lineText += `--------------------\n`;
             lineText += `👥 點餐明細與繳費狀況：\n`;
 
@@ -577,6 +601,21 @@
                 let myOrder = g.orders.find(o => o.username === currentUser.username);
                 let totalQty = g.orders.reduce((sum, o) => sum + o.qty, 0);
                 let isFull = totalQty >= g.maxQty;
+                let unitPriceDisplay = g.unitPrice || Math.round(g.total / g.maxQty);
+
+                // 圖片或預設商品資訊顯示區
+                let visualHeaderHtml = "";
+                if (g.image) {
+                    visualHeaderHtml = `<img src="${g.image}" alt="${g.title}" class="w-full h-full object-cover">`;
+                } else {
+                    visualHeaderHtml = `
+                        <div class="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex flex-col items-center justify-center p-4 text-center">
+                            <i class="fa-solid fa-gift text-3xl mb-1 opacity-80"></i>
+                            <span class="font-bold text-lg truncate w-full">${g.title}</span>
+                            <span class="text-xs bg-white/20 px-2 py-0.5 rounded mt-1">單價 $${unitPriceDisplay} | 總價 $${g.total}</span>
+                        </div>
+                    `;
+                }
 
                 let adminOrdersHtml = g.orders.map((o, idx) => `
                     <div class="flex justify-between items-center text-xs py-1 border-b border-slate-100">
@@ -593,7 +632,7 @@
                 card.innerHTML = `
                     <div>
                         <div class="h-40 bg-slate-200 overflow-hidden relative">
-                            <img src="${g.image}" alt="${g.title}" class="w-full h-full object-cover">
+                            ${visualHeaderHtml}
                             <span class="absolute top-2 left-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded font-bold">${g.status === 'active' ? '進行中' : '已結案'}</span>
                             <span class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">分攤參考: $${g.perPerson}/人</span>
                         </div>
@@ -609,12 +648,12 @@
                                     </div>
                                 ` : ''}
                             </div>
-                            <p class="text-xs text-slate-500">${g.description}</p>
+                            <p class="text-xs text-slate-500">${g.description || '無詳細說明'}</p>
                             
                             <div class="bg-slate-50 p-3 rounded-lg space-y-2">
                                 <div class="flex justify-between text-xs font-semibold text-slate-700">
-                                    <span>目前總購買數：<b class="text-indigo-600 text-sm">${totalQty}</b> / 目標上限 ${g.maxQty}</span>
-                                    <span>${isFull ? '<span class="text-rose-600">已額滿</span>' : '開放中'}</span>
+                                    <span>目前總購買數：<b class="text-indigo-600 text-sm">${totalQty}</b> / 上限 ${g.maxQty}</span>
+                                    <span>單價 $${unitPriceDisplay} (總價 $${g.total})</span>
                                 </div>
                                 <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                                     <div class="bg-indigo-600 h-full transition-all" style="width: ${Math.min(100, (totalQty/g.maxQty)*100)}%"></div>
