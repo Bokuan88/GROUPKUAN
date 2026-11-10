@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>熟人專屬安全團購系統 (V6)</title>
+    <title>熟人專屬安全團購系統 (V7 穩定修復版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -14,7 +14,7 @@
     <!-- 載入中遮罩 -->
     <div id="loading-overlay" class="fixed inset-0 bg-white/80 z-50 flex flex-col items-center justify-center hidden">
         <i class="fa-solid fa-spinner fa-spin text-4xl text-indigo-600 mb-2"></i>
-        <p class="text-sm text-slate-600 font-medium">正在與雲端同步資料，請稍候...</p>
+        <p class="text-sm text-slate-600 font-medium">正在與雲端安全同步資料，請稍候...</p>
     </div>
 
     <!-- 導覽列 -->
@@ -154,7 +154,7 @@
                         <input type="file" id="g-img-file" accept="image/*" class="w-full px-3 py-1.5 border rounded-lg text-sm bg-white mt-1">
                     </div>
                 </div>
-                <!-- 價格與數量邏輯升級 -->
+                <!-- 價格與數量設定 -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-sm font-medium">商品單價 ($)</label>
@@ -162,7 +162,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium">商品總數量上限</label>
-                        <input type="number" id="g-max-qty" min="1" value="10" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg">
+                        <input type="number" id="g-max-qty" min="1" oninput="calculatePrice()" required class="w-full px-3 py-2 border rounded-lg" placeholder="例如：5">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -253,11 +253,11 @@
 
     <!-- 腳本邏輯 -->
     <script>
-        // ⚠️ 請記得將此處替換為你的 Google Apps Script 網頁應用程式網址
+        // ⚠️ 請確保此處為你的 Google Apps Script 網頁應用程式網址 (/exec 結尾)
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyDDolbZz63HHVg0oIy-Rwzn-OACYukXS4xHxCfMdyOC0_07DupmuGXfRX_z7j-RxMcnw/exec";
 
         let db = { users: [], groups: [] };
-        let currentUser = JSON.parse(localStorage.getItem('cloud_current_user_v6')) || null;
+        let currentUser = JSON.parse(localStorage.getItem('cloud_current_user_v7')) || null;
 
         function showLoading(show) {
             document.getElementById('loading-overlay').classList.toggle('hidden', !show);
@@ -275,10 +275,12 @@
             try {
                 let response = await fetch(GAS_API_URL, { method: 'GET' });
                 let data = await response.json();
-                db = data;
+                if (data && data.users && data.groups) {
+                    db = data;
+                }
             } catch (err) {
                 console.error("同步失敗", err);
-                alert('無法連線至雲端資料庫，請檢查 GAS 網址是否正確。');
+                alert('無法連線至雲端資料庫，請檢查網路或 GAS 網址。');
             }
             showLoading(false);
         }
@@ -286,15 +288,22 @@
         async function saveCloudDB() {
             showLoading(true);
             try {
-                await fetch(GAS_API_URL, {
+                let response = await fetch(GAS_API_URL, {
                     method: 'POST',
                     body: JSON.stringify({ action: "saveData", db: db })
                 });
+                let result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || "儲存失敗");
+                }
             } catch (err) {
                 console.error("儲存失敗", err);
-                alert('儲存至雲端失敗！');
+                alert('儲存至雲端失敗！請再試一次。');
+                showLoading(false);
+                return false;
             }
             showLoading(false);
+            return true;
         }
 
         window.onload = async function() {
@@ -316,11 +325,12 @@
             const passwordHash = await hashPassword(password);
 
             db.users.push({ username, passwordHash, name, status: 'approved', isAdmin: true, resetRequested: false });
-            await saveCloudDB();
-
-            alert('管理者帳號設定成功！請使用新帳密登入系統。');
-            document.getElementById('setup-admin-section').classList.add('hidden');
-            document.getElementById('auth-section').classList.remove('hidden');
+            let success = await saveCloudDB();
+            if (success) {
+                alert('管理者帳號設定成功！請使用新帳密登入系統。');
+                document.getElementById('setup-admin-section').classList.add('hidden');
+                document.getElementById('auth-section').classList.remove('hidden');
+            }
         }
 
         function switchTab(tab) {
@@ -349,6 +359,7 @@
                 return;
             }
 
+            await fetchCloudDB();
             if(db.users.find(u => u.username === username)) {
                 alert('此帳號已被註冊！');
                 return;
@@ -356,11 +367,12 @@
 
             const passwordHash = await hashPassword(password);
             db.users.push({ username, passwordHash, name, status: 'pending', isAdmin: false, resetRequested: false });
-            await saveCloudDB();
-
-            alert('註冊申請已送出！請等待管理者審核通過。');
-            document.getElementById('register-form').reset();
-            switchTab('login');
+            let success = await saveCloudDB();
+            if (success) {
+                alert('註冊申請已送出！請等待管理者審核通過。');
+                document.getElementById('register-form').reset();
+                switchTab('login');
+            }
         }
 
         async function handleLogin(e) {
@@ -383,13 +395,13 @@
             }
 
             currentUser = user;
-            localStorage.setItem('cloud_current_user_v6', JSON.stringify(currentUser));
+            localStorage.setItem('cloud_current_user_v7', JSON.stringify(currentUser));
             updateUI();
         }
 
         function logout() {
             currentUser = null;
-            localStorage.removeItem('cloud_current_user_v6');
+            localStorage.removeItem('cloud_current_user_v7');
             updateUI();
         }
 
@@ -423,14 +435,13 @@
             }
         }
 
-        // 金額與總價試算邏輯
         function calculatePrice() {
             const unitPrice = parseFloat(document.getElementById('g-unit-price').value) || 0;
-            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 1;
+            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 0;
             const fee = parseFloat(document.getElementById('g-fee').value) || 0;
             const people = parseInt(document.getElementById('g-people').value) || 1;
 
-            const subtotal = unitPrice * maxQty; // 商品總價
+            const subtotal = unitPrice * maxQty;
             const perPerson = Math.ceil((subtotal + fee) / people);
 
             document.getElementById('calc-subtotal').innerText = `商品總價：$${subtotal} (單價 $${unitPrice} × 數量 ${maxQty})`;
@@ -445,7 +456,7 @@
             document.getElementById('g-img-url').value = "";
             document.getElementById('g-img-file').value = "";
             document.getElementById('g-unit-price').value = "";
-            document.getElementById('g-max-qty').value = "10";
+            document.getElementById('g-max-qty').value = "";
             document.getElementById('g-fee').value = "0";
             document.getElementById('g-people').value = "1";
             calculatePrice();
@@ -460,25 +471,27 @@
             document.getElementById('g-title').value = g.title;
             document.getElementById('g-desc').value = g.description;
             document.getElementById('g-img-url').value = g.image && g.image.startsWith('http') ? g.image : '';
-            document.getElementById('g-unit-price').value = g.unitPrice || 0;
+            document.getElementById('g-unit-price').value = g.unitPrice || Math.round(g.total / g.maxQty) || 0;
             document.getElementById('g-max-qty').value = g.maxQty;
-            document.getElementById('g-fee').value = g.fee;
-            document.getElementById('g-people').value = g.people;
+            document.getElementById('g-fee').value = g.fee || 0;
+            document.getElementById('g-people').value = g.people || 1;
             calculatePrice();
             document.getElementById('modal-create-group').classList.remove('hidden');
         }
 
         async function handleSaveGroup(e) {
             e.preventDefault();
+            await fetchCloudDB(); // 存檔前同步最新狀態
+
             const editingId = document.getElementById('editing-group-id').value;
             const title = document.getElementById('g-title').value;
             const description = document.getElementById('g-desc').value;
             const unitPrice = parseFloat(document.getElementById('g-unit-price').value) || 0;
-            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 10;
+            const maxQty = parseInt(document.getElementById('g-max-qty').value) || 1;
             const fee = parseFloat(document.getElementById('g-fee').value) || 0;
             const people = parseInt(document.getElementById('g-people').value) || 1;
             
-            const total = unitPrice * maxQty; // 總價自動計算
+            const total = unitPrice * maxQty;
             const perPerson = Math.ceil((total + fee) / people);
 
             const imgUrlInput = document.getElementById('g-img-url').value.trim();
@@ -515,10 +528,12 @@
                 db.groups.push(newGroup);
             }
 
-            await saveCloudDB();
-            closeModal('modal-create-group');
-            updateUI();
-            alert('儲存成功！');
+            let success = await saveCloudDB();
+            if (success) {
+                closeModal('modal-create-group');
+                updateUI();
+                alert('團購儲存成功！');
+            }
         }
 
         function toBase64(file) {
@@ -531,6 +546,7 @@
         }
 
         async function deleteGroup(groupId) {
+            await fetchCloudDB();
             const g = db.groups.find(item => item.id === groupId);
             if(g.status !== 'closed') {
                 alert('此團購尚未結案完成，禁止刪除！');
@@ -538,12 +554,13 @@
             }
             if(confirm('確定要永久刪除此團購嗎？')) {
                 db.groups = db.groups.filter(item => item.id !== groupId);
-                await saveCloudDB();
-                updateUI();
+                let success = await saveCloudDB();
+                if (success) updateUI();
             }
         }
 
         async function toggleGroupStatus(groupId) {
+            await fetchCloudDB();
             const g = db.groups.find(item => item.id === groupId);
             if (g.status === 'active') {
                 const hasUnpaid = g.orders.some(o => !o.isPaid);
@@ -553,8 +570,8 @@
                 }
             }
             g.status = g.status === 'active' ? 'closed' : 'active';
-            await saveCloudDB();
-            updateUI();
+            let success = await saveCloudDB();
+            if (success) updateUI();
         }
 
         function copyLineSummary(groupId) {
@@ -567,7 +584,7 @@
             if(g.description) lineText += `說明：${g.description}\n`;
             lineText += `--------------------\n`;
             lineText += `📦 總訂購數量：${totalQty} / ${g.maxQty}\n`;
-            lineText += `💰 商品單價：$${g.unitPrice || (g.total/g.maxQty)} | 總價：$${g.total}\n`;
+            lineText += `💰 商品單價：$${g.unitPrice || Math.round(g.total/g.maxQty)} | 總價：$${g.total}\n`;
             lineText += `💡 每人分攤參考金額：$${g.perPerson}\n`;
             lineText += `--------------------\n`;
             lineText += `👥 點餐明細與繳費狀況：\n`;
@@ -601,18 +618,18 @@
                 let myOrder = g.orders.find(o => o.username === currentUser.username);
                 let totalQty = g.orders.reduce((sum, o) => sum + o.qty, 0);
                 let isFull = totalQty >= g.maxQty;
-                let unitPriceDisplay = g.unitPrice || Math.round(g.total / g.maxQty);
+                let unitPriceDisplay = g.unitPrice || Math.round(g.total / g.maxQty) || 0;
 
-                // 圖片或預設商品資訊顯示區
+                // 完美縮圖與降級文字卡片渲染
                 let visualHeaderHtml = "";
-                if (g.image) {
+                if (g.image && g.image.length > 10) {
                     visualHeaderHtml = `<img src="${g.image}" alt="${g.title}" class="w-full h-full object-cover">`;
                 } else {
                     visualHeaderHtml = `
-                        <div class="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex flex-col items-center justify-center p-4 text-center">
-                            <i class="fa-solid fa-gift text-3xl mb-1 opacity-80"></i>
-                            <span class="font-bold text-lg truncate w-full">${g.title}</span>
-                            <span class="text-xs bg-white/20 px-2 py-0.5 rounded mt-1">單價 $${unitPriceDisplay} | 總價 $${g.total}</span>
+                        <div class="w-full h-full bg-gradient-to-br from-indigo-600 to-violet-700 text-white flex flex-col items-center justify-center p-4 text-center shadow-inner">
+                            <i class="fa-solid fa-basket-shopping text-3xl mb-2 opacity-90"></i>
+                            <span class="font-bold text-lg truncate w-full px-2">${g.title}</span>
+                            <span class="text-xs bg-white/20 px-2.5 py-1 rounded-full mt-1 font-medium">單價 $${unitPriceDisplay} | 總上限 ${g.maxQty}個</span>
                         </div>
                     `;
                 }
@@ -631,10 +648,10 @@
                 card.className = "bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col justify-between";
                 card.innerHTML = `
                     <div>
-                        <div class="h-40 bg-slate-200 overflow-hidden relative">
+                        <div class="h-44 bg-slate-200 overflow-hidden relative">
                             ${visualHeaderHtml}
-                            <span class="absolute top-2 left-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded font-bold">${g.status === 'active' ? '進行中' : '已結案'}</span>
-                            <span class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">分攤參考: $${g.perPerson}/人</span>
+                            <span class="absolute top-2 left-2 bg-indigo-600 text-white text-xs px-2 py-1 rounded font-bold shadow">${g.status === 'active' ? '進行中' : '已結案'}</span>
+                            <span class="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded shadow">分攤: $${g.perPerson}/人</span>
                         </div>
                         <div class="p-4 space-y-2">
                             <div class="flex justify-between items-start">
@@ -712,16 +729,16 @@
             } else if(change > 0) {
                 group.orders.push({ username: currentUser.username, name: currentUser.name, qty: 1, isPaid: false });
             }
-            await saveCloudDB();
-            updateUI();
+            let success = await saveCloudDB();
+            if (success) updateUI();
         }
 
         async function togglePaid(groupId, orderIdx) {
             await fetchCloudDB();
             const group = db.groups.find(g => g.id === groupId);
             group.orders[orderIdx].isPaid = !group.orders[orderIdx].isPaid;
-            await saveCloudDB();
-            updateUI();
+            let success = await saveCloudDB();
+            if (success) updateUI();
         }
 
         function openForgotPasswordModal() {
@@ -738,9 +755,11 @@
                 return;
             }
             u.resetRequested = true;
-            await saveCloudDB();
-            alert('已向管理者送出密碼重設申請。');
-            closeModal('modal-forgot-password');
+            let success = await saveCloudDB();
+            if (success) {
+                alert('已向管理者送出密碼重設申請。');
+                closeModal('modal-forgot-password');
+            }
         }
 
         function updateBadges() {
@@ -773,14 +792,17 @@
         }
 
         async function approvePasswordReset(username) {
+            await fetchCloudDB();
             let u = db.users.find(user => user.username === username);
             if(u) {
                 u.passwordHash = await hashPassword('8888');
                 u.resetRequested = false;
-                await saveCloudDB();
-                alert(`已核准！臨時密碼為：8888`);
-                openResetPasswordRequestsModal();
-                updateUI();
+                let success = await saveCloudDB();
+                if (success) {
+                    alert(`已核准！臨時密碼為：8888`);
+                    openResetPasswordRequestsModal();
+                    updateUI();
+                }
             }
         }
 
@@ -804,15 +826,18 @@
         }
 
         async function approveUser(username, isApproved) {
+            await fetchCloudDB();
             if(isApproved) {
                 let u = db.users.find(user => user.username === username);
                 if(u) u.status = 'approved';
             } else {
                 db.users = db.users.filter(user => user.username !== username);
             }
-            await saveCloudDB();
-            updateUI();
-            openUserApprovalModal();
+            let success = await saveCloudDB();
+            if (success) {
+                updateUI();
+                openUserApprovalModal();
+            }
         }
 
         function openManageMembersModal() {
@@ -835,22 +860,28 @@
         }
 
         async function updateMemberName(username) {
+            await fetchCloudDB();
             const newName = document.getElementById(`m-name-${username}`).value;
             let u = db.users.find(user => user.username === username);
             if(u && newName) {
                 u.name = newName;
-                await saveCloudDB();
-                alert('更新成功！');
-                updateUI();
+                let success = await saveCloudDB();
+                if (success) {
+                    alert('更新成功！');
+                    updateUI();
+                }
             }
         }
 
         async function kickMember(username) {
             if(confirm(`確定要將 ${username} 踢出嗎？`)) {
+                await fetchCloudDB();
                 db.users = db.users.filter(user => user.username !== username);
-                await saveCloudDB();
-                updateUI();
-                openManageMembersModal();
+                let success = await saveCloudDB();
+                if (success) {
+                    updateUI();
+                    openManageMembersModal();
+                }
             }
         }
 
